@@ -1,0 +1,339 @@
+<mujoco model="quadrotor">
+
+    <option
+        timestep="0.002"
+        gravity="0 0 -9.81"
+        integrator="RK4"/>
+
+    <compiler angle="radian"/>
+
+    <visual>
+
+        <map
+            znear="0.01"
+            zfar="100"/>
+
+        <quality
+            shadowsize="2048"/>
+
+        <headlight
+            ambient="0.5 0.5 0.5"
+            diffuse="0.8 0.8 0.8"
+            specular="0.2 0.2 0.2"/>
+
+        <global
+            offwidth="1600"
+            offheight="1000"/>
+
+    </visual>
+
+
+    <default>
+
+        <joint
+            damping="0.2"
+            armature="0.01"/>
+
+        <geom
+            condim="3"
+            friction="1.0 0.5 0.1"/>
+
+    </default>
+
+
+    <asset>
+
+        <material
+            name="ground"
+            rgba="0.18 0.18 0.20 1"/>
+
+        <material
+            name="marking"
+            rgba="0.90 0.90 0.80 1"/>
+
+        <material
+            name="body"
+            rgba="0.05 0.20 0.85 1"/>
+
+        <material
+            name="light"
+            rgba="0.80 0.82 0.88 1"/>
+
+        <material
+            name="black"
+            rgba="0.02 0.02 0.02 1"/>
+
+    </asset>
+
+
+    <worldbody>
+
+
+        <!-- ==================================================
+             GROUND
+             ================================================== -->
+
+        <geom
+            name="ground"
+            type="plane"
+            pos="0 0 0"
+            size="25 25 0.1"
+            material="ground"
+            friction="1.5 0.7 0.1"/>
+
+
+        <!-- GROUND X AXIS -->
+
+        <geom
+            name="ground_x"
+            type="box"
+            pos="0 0 0.002"
+            size="25 0.012 0.002"
+            material="marking"
+            contype="0"
+            conaffinity="0"/>
+
+
+        <!-- GROUND Y AXIS -->
+
+        <geom
+            name="ground_y"
+            type="box"
+            pos="0 0 0.003"
+            size="0.012 25 0.002"
+            material="marking"
+            contype="0"
+            conaffinity="0"/>
+
+
+        <!-- ==================================================
+             LIGHTING
+             ================================================== -->
+
+        <light
+            name="key_light"
+            pos="3 -4 6"
+            directional="true"
+            diffuse="1 1 1"
+            specular="0.2 0.2 0.2"/>
+
+
+        <light
+            name="fill_light"
+            pos="-3 3 5"
+            directional="true"
+            diffuse="0.6 0.6 0.6"/>
+
+
+        <!-- ==================================================
+             QUADROTOR BASE
+             ================================================== -->
+
+        <body
+            name="base_link"
+            pos="0 0 1">
+
+
+            <!-- ==================================================
+                 FULL 6 DOF FREE JOINT
+                 ================================================== -->
+
+            <freejoint
+                name="quadrotor_free"/>
+
+
+            <!-- ==================================================
+                 CENTRAL BODY
+                 ================================================== -->
+
+            <geom
+                name="base_body"
+                type="box"
+                pos="0 0 0"
+                size="0.16 0.16 0.055"
+                mass="0.8"
+                material="body"/>
+
+
+            <!-- TOP PLATE -->
+
+            <geom
+                name="top_plate"
+                type="box"
+                pos="0 0 0.065"
+                size="0.13 0.13 0.015"
+                mass="0.15"
+                material="light"/>
+
+
+            <!-- ==================================================
+                 FRONT ARM (+X)
+                 ================================================== -->
+
+            <geom
+                name="front_arm"
+                type="capsule"
+                fromto="0 0 0 0.38 0 0"
+                size="0.025"
+                mass="0.08"
+                material="light"/>
+
+
+            <body
+                name="front_motor"
+                pos="0.38 0 0.04">
+
+                <joint
+                    name="front_rotor_joint"
+                    type="hinge"
+                    axis="0 0 1"
+                    damping="0.01"/>
+
+                <geom
+                    name="front_rotor"
+                    type="cylinder"
+                    size="0.12 0.008"
+                    mass="0.03"
+                    material="black"/>
+
+            </body>
+
+
+            <!-- ==================================================
+                 BACK ARM (-X)
+                 ================================================== -->
+
+            <geom
+                name="back_arm"
+                type="capsule"
+                fromto="0 0 0 -0.38 0 0"
+                size="0.025"
+                mass="0.08"
+                material="light"/>
+
+
+            <body
+                name="back_motor"
+                pos="-0.38 0 0.04">
+
+                <joint
+                    name="back_rotor_joint"
+                    type="hinge"
+                    axis="0 0 1"
+                    damping="0.01"/>
+
+                <geom
+                    name="back_rotor"
+                    type="cylinder"
+                    size="0.12 0.008"
+                    mass="0.03"
+                    material="black"/>
+
+            </body>
+
+
+            <!-- ==================================================
+                 LEFT ARM (+Y)
+                 ================================================== -->
+
+            <geom
+                name="left_arm"
+                type="capsule"
+                fromto="0 0 0 0 0.38 0"
+                size="0.025"
+                mass="0.08"
+                material="light"/>
+
+
+            <body
+                name="left_motor"
+                pos="0 0.38 0.04">
+
+                <joint
+                    name="left_rotor_joint"
+                    type="hinge"
+                    axis="0 0 1"
+                    damping="0.01"/>
+
+                <geom
+                    name="left_rotor"
+                    type="cylinder"
+                    size="0.12 0.008"
+                    mass="0.03"
+                    material="black"/>
+
+            </body>
+
+
+            <!-- ==================================================
+                 RIGHT ARM (-Y)
+                 ================================================== -->
+
+            <geom
+                name="right_arm"
+                type="capsule"
+                fromto="0 0 0 0 -0.38 0"
+                size="0.025"
+                mass="0.08"
+                material="light"/>
+
+
+            <body
+                name="right_motor"
+                pos="0 -0.38 0.04">
+
+                <joint
+                    name="right_rotor_joint"
+                    type="hinge"
+                    axis="0 0 1"
+                    damping="0.01"/>
+
+                <geom
+                    name="right_rotor"
+                    type="cylinder"
+                    size="0.12 0.008"
+                    mass="0.03"
+                    material="black"/>
+
+            </body>
+
+        </body>
+
+    </worldbody>
+
+
+    <!-- ======================================================
+         FOUR ROTOR ACTUATORS
+
+         These currently control rotor angular velocity.
+         Actual thrust control will be added next.
+         ====================================================== -->
+
+    <actuator>
+
+        <velocity
+            name="front_motor_actuator"
+            joint="front_rotor_joint"
+            kv="0.5"/>
+
+
+        <velocity
+            name="back_motor_actuator"
+            joint="back_rotor_joint"
+            kv="0.5"/>
+
+
+        <velocity
+            name="left_motor_actuator"
+            joint="left_rotor_joint"
+            kv="0.5"/>
+
+
+        <velocity
+            name="right_motor_actuator"
+            joint="right_rotor_joint"
+            kv="0.5"/>
+
+    </actuator>
+
+</mujoco>

@@ -1,0 +1,2199 @@
+import numpy as np
+import tkinter as tk
+import mujoco
+import glfw
+
+
+# ============================================================
+# LOAD MODEL
+# ============================================================
+
+model = mujoco.MjModel.from_xml_path(
+    "models/waffle_pi.xml"
+)
+
+data = mujoco.MjData(model)
+
+
+# ============================================================
+# FIND BASE BODY
+# ============================================================
+
+base_id = mujoco.mj_name2id(
+    model,
+    mujoco.mjtObj.mjOBJ_BODY,
+    "base_link"
+)
+
+if base_id == -1:
+    raise RuntimeError(
+        "Could not find body 'base_link'"
+    )
+
+
+# ============================================================
+# FIND BASE JOINTS
+# ============================================================
+
+base_x_joint = mujoco.mj_name2id(
+    model,
+    mujoco.mjtObj.mjOBJ_JOINT,
+    "base_x"
+)
+
+base_y_joint = mujoco.mj_name2id(
+    model,
+    mujoco.mjtObj.mjOBJ_JOINT,
+    "base_y"
+)
+
+base_yaw_joint = mujoco.mj_name2id(
+    model,
+    mujoco.mjtObj.mjOBJ_JOINT,
+    "base_yaw"
+)
+
+
+if base_x_joint == -1:
+    raise RuntimeError(
+        "Could not find joint 'base_x'"
+    )
+
+if base_y_joint == -1:
+    raise RuntimeError(
+        "Could not find joint 'base_y'"
+    )
+
+if base_yaw_joint == -1:
+    raise RuntimeError(
+        "Could not find joint 'base_yaw'"
+    )
+
+
+# ============================================================
+# GET QPOS ADDRESSES
+# ============================================================
+
+base_x_qpos = model.jnt_qposadr[
+    base_x_joint
+]
+
+base_y_qpos = model.jnt_qposadr[
+    base_y_joint
+]
+
+base_yaw_qpos = model.jnt_qposadr[
+    base_yaw_joint
+]
+
+
+# ============================================================
+# GET QVEL ADDRESSES
+# ============================================================
+
+base_x_qvel = model.jnt_dofadr[
+    base_x_joint
+]
+
+base_y_qvel = model.jnt_dofadr[
+    base_y_joint
+]
+
+base_yaw_qvel = model.jnt_dofadr[
+    base_yaw_joint
+]
+
+
+# ============================================================
+# ROBOT INITIAL Z
+# ============================================================
+
+# Your XML defines:
+#
+# <body name="base_link" pos="0 0 0.11">
+#
+# There is NO Z joint.
+#
+# Therefore Z is fixed.
+
+INITIAL_Z = 0.11
+
+
+# ============================================================
+# CONTROL SPEED
+# ============================================================
+
+FORWARD_SPEED = 6.0
+
+ROTATE_SPEED = 4.0
+
+
+# ============================================================
+# CAMERA SETTINGS
+# ============================================================
+
+FOLLOW_ROBOT = True
+
+CAMERA_DISTANCE = 2.0
+
+CAMERA_ELEVATION = -20.0
+
+# 90 degrees gives a side view of the X-direction lane,
+# making the lane appear horizontally across the screen.
+CAMERA_AZIMUTH = 90.0
+
+CAMERA_HEIGHT = 0.10
+
+
+# ============================================================
+# KEYBOARD STATE
+# ============================================================
+
+up_pressed = False
+
+down_pressed = False
+
+left_pressed = False
+
+right_pressed = False
+
+space_pressed = False
+
+
+# ============================================================
+# MOUSE STATE
+# ============================================================
+
+mouse_left_pressed = False
+
+mouse_right_pressed = False
+
+last_mouse_x = 0.0
+
+last_mouse_y = 0.0
+
+
+# ============================================================
+# MUJOCO VISUALIZATION
+# ============================================================
+
+camera = None
+
+option = None
+
+scene = None
+
+context = None
+
+
+# ============================================================
+# WHEEL CONTROL
+# ============================================================
+
+def set_wheels(
+    left,
+    right
+):
+
+    data.ctrl[0] = left
+
+    data.ctrl[1] = right
+
+
+def stop_robot():
+
+    set_wheels(
+        0.0,
+        0.0
+    )
+
+
+# ============================================================
+# KEYBOARD CALLBACK
+# ============================================================
+
+def keyboard_callback(
+    window,
+    key,
+    scancode,
+    action,
+    mods
+):
+
+    global up_pressed
+    global down_pressed
+    global left_pressed
+    global right_pressed
+    global space_pressed
+
+
+    # --------------------------------------------------------
+    # ESCAPE
+    # --------------------------------------------------------
+
+    if key == glfw.KEY_ESCAPE:
+
+        if action == glfw.PRESS:
+
+            glfw.set_window_should_close(
+                window,
+                True
+            )
+
+        return
+
+
+    # --------------------------------------------------------
+    # PRESS
+    # --------------------------------------------------------
+
+    if action == glfw.PRESS:
+
+        if key == glfw.KEY_UP:
+
+            up_pressed = True
+
+        elif key == glfw.KEY_DOWN:
+
+            down_pressed = True
+
+        elif key == glfw.KEY_LEFT:
+
+            left_pressed = True
+
+        elif key == glfw.KEY_RIGHT:
+
+            right_pressed = True
+
+        elif key == glfw.KEY_SPACE:
+
+            space_pressed = True
+
+            stop_robot()
+
+
+    # --------------------------------------------------------
+    # RELEASE
+    # --------------------------------------------------------
+
+    elif action == glfw.RELEASE:
+
+        if key == glfw.KEY_UP:
+
+            up_pressed = False
+
+        elif key == glfw.KEY_DOWN:
+
+            down_pressed = False
+
+        elif key == glfw.KEY_LEFT:
+
+            left_pressed = False
+
+        elif key == glfw.KEY_RIGHT:
+
+            right_pressed = False
+
+        elif key == glfw.KEY_SPACE:
+
+            space_pressed = False
+
+
+# ============================================================
+# UPDATE KEYBOARD CONTROL
+# ============================================================
+
+def update_keyboard_control():
+
+    # --------------------------------------------------------
+    # SPACE
+    # --------------------------------------------------------
+
+    if space_pressed:
+
+        stop_robot()
+
+        return
+
+
+    # --------------------------------------------------------
+    # FORWARD
+    # --------------------------------------------------------
+
+    if up_pressed:
+
+        set_wheels(
+            FORWARD_SPEED,
+            FORWARD_SPEED
+        )
+
+        return
+
+
+    # --------------------------------------------------------
+    # BACKWARD
+    # --------------------------------------------------------
+
+    if down_pressed:
+
+        set_wheels(
+            -FORWARD_SPEED,
+            -FORWARD_SPEED
+        )
+
+        return
+
+
+    # --------------------------------------------------------
+    # LEFT
+    # --------------------------------------------------------
+
+    if left_pressed:
+
+        set_wheels(
+            -ROTATE_SPEED,
+            ROTATE_SPEED
+        )
+
+        return
+
+
+    # --------------------------------------------------------
+    # RIGHT
+    # --------------------------------------------------------
+
+    if right_pressed:
+
+        set_wheels(
+            ROTATE_SPEED,
+            -ROTATE_SPEED
+        )
+
+        return
+
+
+    # --------------------------------------------------------
+    # NOTHING PRESSED
+    # --------------------------------------------------------
+
+    stop_robot()
+
+
+# ============================================================
+# DRAW ARROW
+# ============================================================
+
+def draw_arrow(
+    scene,
+    start,
+    end,
+    rgba
+):
+
+    if scene.ngeom >= scene.maxgeom:
+
+        return
+
+
+    geom = scene.geoms[
+        scene.ngeom
+    ]
+
+
+    mujoco.mjv_initGeom(
+
+        geom,
+
+        mujoco.mjtGeom.mjGEOM_ARROW,
+
+        np.array([
+            0.025,
+            0.025,
+            0.025
+        ]),
+
+        np.asarray(
+            start,
+            dtype=np.float64
+        ),
+
+        np.eye(3).flatten(),
+
+        np.asarray(
+            rgba,
+            dtype=np.float32
+        )
+    )
+
+
+    mujoco.mjv_connector(
+
+        geom,
+
+        mujoco.mjtGeom.mjGEOM_ARROW,
+
+        0.025,
+
+        np.asarray(
+            start,
+            dtype=np.float64
+        ),
+
+        np.asarray(
+            end,
+            dtype=np.float64
+        )
+    )
+
+
+    scene.ngeom += 1
+
+
+# ============================================================
+# DRAW LABEL
+# ============================================================
+
+def draw_label(
+    scene,
+    position,
+    text,
+    rgba
+):
+
+    if scene.ngeom >= scene.maxgeom:
+
+        return
+
+
+    geom = scene.geoms[
+        scene.ngeom
+    ]
+
+
+    mujoco.mjv_initGeom(
+
+        geom,
+
+        mujoco.mjtGeom.mjGEOM_LABEL,
+
+        np.zeros(3),
+
+        np.asarray(
+            position,
+            dtype=np.float64
+        ),
+
+        np.eye(3).flatten(),
+
+        np.asarray(
+            rgba,
+            dtype=np.float32
+        )
+    )
+
+
+    geom.label = text
+
+    scene.ngeom += 1
+
+
+# ============================================================
+# DRAW WORLD / GROUND FRAME
+# ============================================================
+
+def draw_world_frame(scene):
+
+    origin = np.array([
+        0.0,
+        0.0,
+        0.015
+    ])
+
+
+    axis_length = 0.60
+
+
+    # ========================================================
+    # WORLD X
+    # ========================================================
+
+    x_end = origin + np.array([
+        axis_length,
+        0.0,
+        0.0
+    ])
+
+
+    draw_arrow(
+        scene,
+        origin,
+        x_end,
+        [1.0, 0.0, 0.0, 1.0]
+    )
+
+
+    draw_label(
+        scene,
+        x_end + np.array([
+            0.06,
+            0.0,
+            0.03
+        ]),
+        "WORLD X",
+        [1.0, 0.0, 0.0, 1.0]
+    )
+
+
+    # ========================================================
+    # WORLD Y
+    # ========================================================
+
+    y_end = origin + np.array([
+        0.0,
+        axis_length,
+        0.0
+    ])
+
+
+    draw_arrow(
+        scene,
+        origin,
+        y_end,
+        [0.0, 1.0, 0.0, 1.0]
+    )
+
+
+    draw_label(
+        scene,
+        y_end + np.array([
+            0.0,
+            0.06,
+            0.03
+        ]),
+        "WORLD Y",
+        [0.0, 1.0, 0.0, 1.0]
+    )
+
+
+    # ========================================================
+    # WORLD Z
+    # ========================================================
+
+    z_end = origin + np.array([
+        0.0,
+        0.0,
+        axis_length
+    ])
+
+
+    draw_arrow(
+        scene,
+        origin,
+        z_end,
+        [0.0, 0.3, 1.0, 1.0]
+    )
+
+
+    draw_label(
+        scene,
+        z_end + np.array([
+            0.0,
+            0.0,
+            0.06
+        ]),
+        "WORLD Z",
+        [0.0, 0.3, 1.0, 1.0]
+    )
+
+
+    # ========================================================
+    # ORIGIN
+    # ========================================================
+
+    draw_label(
+        scene,
+        origin + np.array([
+            0.05,
+            0.05,
+            0.05
+        ]),
+        "WORLD ORIGIN",
+        [1.0, 1.0, 1.0, 1.0]
+    )
+
+
+# ============================================================
+# DRAW BODY FRAME
+# ============================================================
+
+def draw_body_frame(scene):
+
+    position = data.xpos[
+        base_id
+    ].copy()
+
+
+    # --------------------------------------------------------
+    # R_WB
+    #
+    # Body frame expressed in world coordinates.
+    # --------------------------------------------------------
+
+    R = data.xmat[
+        base_id
+    ].reshape(
+        3,
+        3
+    ).copy()
+
+
+    x_axis = R[:, 0]
+
+    y_axis = R[:, 1]
+
+    z_axis = R[:, 2]
+
+
+    origin = position + np.array([
+        0.0,
+        0.0,
+        0.20
+    ])
+
+
+    axis_length = 0.50
+
+
+    # ========================================================
+    # BODY X
+    # ========================================================
+
+    x_end = (
+        origin
+        + axis_length * x_axis
+    )
+
+
+    draw_arrow(
+        scene,
+        origin,
+        x_end,
+        [1.0, 0.0, 0.0, 1.0]
+    )
+
+
+    draw_label(
+        scene,
+        x_end + np.array([
+            0.04,
+            0.0,
+            0.04
+        ]),
+        "BODY X / FORWARD",
+        [1.0, 0.0, 0.0, 1.0]
+    )
+
+
+    # ========================================================
+    # BODY Y
+    # ========================================================
+
+    y_end = (
+        origin
+        + axis_length * y_axis
+    )
+
+
+    draw_arrow(
+        scene,
+        origin,
+        y_end,
+        [0.0, 1.0, 0.0, 1.0]
+    )
+
+
+    draw_label(
+        scene,
+        y_end + np.array([
+            0.0,
+            0.04,
+            0.04
+        ]),
+        "BODY Y / LEFT",
+        [0.0, 1.0, 0.0, 1.0]
+    )
+
+
+    # ========================================================
+    # BODY Z
+    # ========================================================
+
+    z_end = (
+        origin
+        + axis_length * z_axis
+    )
+
+
+    draw_arrow(
+        scene,
+        origin,
+        z_end,
+        [0.0, 0.3, 1.0, 1.0]
+    )
+
+
+    draw_label(
+        scene,
+        z_end + np.array([
+            0.0,
+            0.0,
+            0.06
+        ]),
+        "BODY Z / UP",
+        [0.0, 0.3, 1.0, 1.0]
+    )
+
+
+    # ========================================================
+    # BODY ORIGIN
+    # ========================================================
+
+    draw_label(
+        scene,
+        origin + np.array([
+            0.04,
+            0.04,
+            0.05
+        ]),
+        "BODY ORIGIN",
+        [1.0, 1.0, 1.0, 1.0]
+    )
+
+
+# ============================================================
+# RESET ORIGIN
+# ============================================================
+
+def reset_origin():
+
+    stop_robot()
+
+
+    # --------------------------------------------------------
+    # Base X
+    # --------------------------------------------------------
+
+    data.qpos[
+        base_x_qpos
+    ] = 0.0
+
+
+    # --------------------------------------------------------
+    # Base Y
+    # --------------------------------------------------------
+
+    data.qpos[
+        base_y_qpos
+    ] = 0.0
+
+
+    # --------------------------------------------------------
+    # Base yaw
+    # --------------------------------------------------------
+
+    data.qpos[
+        base_yaw_qpos
+    ] = 0.0
+
+
+    # --------------------------------------------------------
+    # Clear base velocities
+    # --------------------------------------------------------
+
+    data.qvel[
+        base_x_qvel
+    ] = 0.0
+
+    data.qvel[
+        base_y_qvel
+    ] = 0.0
+
+    data.qvel[
+        base_yaw_qvel
+    ] = 0.0
+
+
+    # --------------------------------------------------------
+    # Clear controls
+    # --------------------------------------------------------
+
+    data.ctrl[:] = 0.0
+
+
+    # --------------------------------------------------------
+    # Recalculate
+    # --------------------------------------------------------
+
+    mujoco.mj_forward(
+        model,
+        data
+    )
+
+
+    update_spawn_entries(
+        0.0,
+        0.0,
+        0.0
+    )
+
+
+    print(
+        "Robot reset to origin."
+    )
+
+
+# ============================================================
+# SPAWN AT USER COORDINATES
+# ============================================================
+
+def spawn_at_coordinates(
+    x,
+    y,
+    yaw_degrees
+):
+
+    stop_robot()
+
+
+    # --------------------------------------------------------
+    # Convert yaw to radians
+    # --------------------------------------------------------
+
+    yaw = np.radians(
+        yaw_degrees
+    )
+
+
+    # --------------------------------------------------------
+    # Set base X
+    # --------------------------------------------------------
+
+    data.qpos[
+        base_x_qpos
+    ] = x
+
+
+    # --------------------------------------------------------
+    # Set base Y
+    # --------------------------------------------------------
+
+    data.qpos[
+        base_y_qpos
+    ] = y
+
+
+    # --------------------------------------------------------
+    # Set base yaw
+    # --------------------------------------------------------
+
+    data.qpos[
+        base_yaw_qpos
+    ] = yaw
+
+
+    # --------------------------------------------------------
+    # Clear base velocities
+    # --------------------------------------------------------
+
+    data.qvel[
+        base_x_qvel
+    ] = 0.0
+
+    data.qvel[
+        base_y_qvel
+    ] = 0.0
+
+    data.qvel[
+        base_yaw_qvel
+    ] = 0.0
+
+
+    # --------------------------------------------------------
+    # Clear wheel velocities too
+    # --------------------------------------------------------
+
+    data.qvel[
+        :
+    ] = np.where(
+        np.isfinite(data.qvel),
+        data.qvel,
+        0.0
+    )
+
+
+    # --------------------------------------------------------
+    # Clear actuators
+    # --------------------------------------------------------
+
+    data.ctrl[:] = 0.0
+
+
+    # --------------------------------------------------------
+    # Update physics
+    # --------------------------------------------------------
+
+    mujoco.mj_forward(
+        model,
+        data
+    )
+
+
+    print()
+    print("================================================")
+    print("ROBOT RESPAWN")
+    print("================================================")
+    print(
+        f"X   = {x:.6f} m"
+    )
+    print(
+        f"Y   = {y:.6f} m"
+    )
+    print(
+        f"Z   = {INITIAL_Z:.6f} m  (fixed by XML)"
+    )
+    print(
+        f"YAW = {yaw_degrees:.6f} degrees"
+    )
+    print("================================================")
+
+
+# ============================================================
+# RANDOM SPAWN
+# ============================================================
+
+def random_spawn():
+
+    random_x = np.random.uniform(
+        -10.0,
+        10.0
+    )
+
+
+    random_y = np.random.uniform(
+        -1.5,
+        1.5
+    )
+
+
+    random_yaw = np.random.uniform(
+        -180.0,
+        180.0
+    )
+
+
+    spawn_at_coordinates(
+        random_x,
+        random_y,
+        random_yaw
+    )
+
+
+    update_spawn_entries(
+        random_x,
+        random_y,
+        random_yaw
+    )
+
+
+# ============================================================
+# UPDATE SPAWN ENTRY BOXES
+# ============================================================
+
+def update_spawn_entries(
+    x,
+    y,
+    yaw
+):
+
+    x_entry.delete(
+        0,
+        tk.END
+    )
+
+    x_entry.insert(
+        0,
+        f"{x:.6f}"
+    )
+
+
+    y_entry.delete(
+        0,
+        tk.END
+    )
+
+    y_entry.insert(
+        0,
+        f"{y:.6f}"
+    )
+
+
+    yaw_entry.delete(
+        0,
+        tk.END
+    )
+
+    yaw_entry.insert(
+        0,
+        f"{yaw:.6f}"
+    )
+
+
+# ============================================================
+# APPLY USER POSE
+# ============================================================
+
+def apply_user_pose():
+
+    try:
+
+        x = float(
+            x_entry.get()
+        )
+
+        y = float(
+            y_entry.get()
+        )
+
+        yaw = float(
+            yaw_entry.get()
+        )
+
+
+        spawn_at_coordinates(
+            x,
+            y,
+            yaw
+        )
+
+
+    except ValueError:
+
+        print(
+            "ERROR: Enter valid numeric values."
+        )
+
+
+# ============================================================
+# CAMERA FOLLOW
+# ============================================================
+
+def update_follow_camera():
+
+    if not FOLLOW_ROBOT:
+        return
+
+
+    position = data.xpos[
+        base_id
+    ]
+
+
+    camera.lookat[0] = position[0]
+
+    camera.lookat[1] = position[1]
+
+    camera.lookat[2] = (
+        position[2]
+        + CAMERA_HEIGHT
+    )
+
+
+# ============================================================
+# MOUSE BUTTON
+# ============================================================
+
+def mouse_button_callback(
+    window,
+    button,
+    action,
+    mods
+):
+
+    global mouse_left_pressed
+    global mouse_right_pressed
+    global last_mouse_x
+    global last_mouse_y
+
+
+    if action == glfw.PRESS:
+
+        last_mouse_x, last_mouse_y = (
+            glfw.get_cursor_pos(window)
+        )
+
+
+        if button == glfw.MOUSE_BUTTON_LEFT:
+
+            mouse_left_pressed = True
+
+
+        elif button == glfw.MOUSE_BUTTON_RIGHT:
+
+            mouse_right_pressed = True
+
+
+    elif action == glfw.RELEASE:
+
+        if button == glfw.MOUSE_BUTTON_LEFT:
+
+            mouse_left_pressed = False
+
+
+        elif button == glfw.MOUSE_BUTTON_RIGHT:
+
+            mouse_right_pressed = False
+
+
+# ============================================================
+# MOUSE MOVE
+# ============================================================
+
+def cursor_position_callback(
+    window,
+    xpos,
+    ypos
+):
+
+    global last_mouse_x
+    global last_mouse_y
+    global CAMERA_AZIMUTH
+    global CAMERA_ELEVATION
+
+
+    dx = xpos - last_mouse_x
+
+    dy = ypos - last_mouse_y
+
+
+    last_mouse_x = xpos
+
+    last_mouse_y = ypos
+
+
+    # --------------------------------------------------------
+    # LEFT DRAG = ORBIT
+    # --------------------------------------------------------
+
+    if mouse_left_pressed:
+
+        CAMERA_AZIMUTH += (
+            dx * 0.4
+        )
+
+        CAMERA_ELEVATION += (
+            dy * 0.25
+        )
+
+
+        CAMERA_ELEVATION = np.clip(
+            CAMERA_ELEVATION,
+            -89.0,
+            -5.0
+        )
+
+
+        camera.azimuth = CAMERA_AZIMUTH
+
+        camera.elevation = CAMERA_ELEVATION
+
+
+    # --------------------------------------------------------
+    # RIGHT DRAG = PAN
+    # --------------------------------------------------------
+
+    elif mouse_right_pressed:
+
+        if not FOLLOW_ROBOT:
+
+            camera.lookat[0] -= (
+                dx * 0.005
+            )
+
+            camera.lookat[1] += (
+                dy * 0.005
+            )
+
+
+# ============================================================
+# MOUSE SCROLL
+# ============================================================
+
+def scroll_callback(
+    window,
+    xoffset,
+    yoffset
+):
+
+    global CAMERA_DISTANCE
+
+
+    CAMERA_DISTANCE -= (
+        yoffset * 0.15
+    )
+
+
+    CAMERA_DISTANCE = np.clip(
+        CAMERA_DISTANCE,
+        0.5,
+        20.0
+    )
+
+
+    camera.distance = CAMERA_DISTANCE
+
+
+# ============================================================
+# INFORMATION WINDOW
+# ============================================================
+
+info_window = tk.Tk()
+
+
+info_window.title(
+    "TurtleBot3 Waffle Pi - Robot Information"
+)
+
+
+info_window.geometry(
+    "760x920"
+)
+
+
+info_window.minsize(
+    700,
+    800
+)
+
+
+# ============================================================
+# SPAWN PANEL
+# ============================================================
+
+spawn_frame = tk.LabelFrame(
+    info_window,
+    text="RESPAWN / SET ROBOT POSE"
+)
+
+spawn_frame.pack(
+    padx=10,
+    pady=8,
+    fill=tk.X
+)
+
+
+# ============================================================
+# X
+# ============================================================
+
+tk.Label(
+    spawn_frame,
+    text="X (m)"
+).grid(
+    row=0,
+    column=0,
+    padx=5,
+    pady=5
+)
+
+
+x_entry = tk.Entry(
+    spawn_frame,
+    width=14
+)
+
+x_entry.insert(
+    0,
+    "0.0"
+)
+
+x_entry.grid(
+    row=0,
+    column=1,
+    padx=5
+)
+
+
+# ============================================================
+# Y
+# ============================================================
+
+tk.Label(
+    spawn_frame,
+    text="Y (m)"
+).grid(
+    row=0,
+    column=2,
+    padx=5,
+    pady=5
+)
+
+
+y_entry = tk.Entry(
+    spawn_frame,
+    width=14
+)
+
+y_entry.insert(
+    0,
+    "0.0"
+)
+
+y_entry.grid(
+    row=0,
+    column=3,
+    padx=5
+)
+
+
+# ============================================================
+# Z
+# ============================================================
+
+tk.Label(
+    spawn_frame,
+    text="Z (m)"
+).grid(
+    row=1,
+    column=0,
+    padx=5,
+    pady=5
+)
+
+
+z_entry = tk.Entry(
+    spawn_frame,
+    width=14,
+    state="readonly"
+)
+
+z_entry.configure(
+    state="normal"
+)
+
+z_entry.insert(
+    0,
+    f"{INITIAL_Z:.6f}"
+)
+
+z_entry.configure(
+    state="readonly"
+)
+
+z_entry.grid(
+    row=1,
+    column=1,
+    padx=5
+)
+
+
+# ============================================================
+# YAW
+# ============================================================
+
+tk.Label(
+    spawn_frame,
+    text="Yaw (deg)"
+).grid(
+    row=1,
+    column=2,
+    padx=5,
+    pady=5
+)
+
+
+yaw_entry = tk.Entry(
+    spawn_frame,
+    width=14
+)
+
+yaw_entry.insert(
+    0,
+    "0.0"
+)
+
+yaw_entry.grid(
+    row=1,
+    column=3,
+    padx=5
+)
+
+
+# ============================================================
+# Z INFORMATION
+# ============================================================
+
+tk.Label(
+    spawn_frame,
+    text="Z is fixed by waffle_pi.xml"
+).grid(
+    row=2,
+    column=0,
+    columnspan=2,
+    padx=5,
+    pady=5
+)
+
+
+# ============================================================
+# APPLY
+# ============================================================
+
+apply_button = tk.Button(
+    spawn_frame,
+    text="APPLY POSE",
+    command=apply_user_pose,
+    width=16,
+    height=2
+)
+
+apply_button.grid(
+    row=3,
+    column=0,
+    columnspan=2,
+    padx=5,
+    pady=8
+)
+
+
+# ============================================================
+# RESET
+# ============================================================
+
+reset_button = tk.Button(
+    spawn_frame,
+    text="RESET ORIGIN",
+    command=reset_origin,
+    width=16,
+    height=2
+)
+
+reset_button.grid(
+    row=3,
+    column=2,
+    padx=5,
+    pady=8
+)
+
+
+# ============================================================
+# RANDOM
+# ============================================================
+
+random_button = tk.Button(
+    spawn_frame,
+    text="RANDOM SPAWN",
+    command=random_spawn,
+    width=16,
+    height=2
+)
+
+random_button.grid(
+    row=3,
+    column=3,
+    padx=5,
+    pady=8
+)
+
+
+# ============================================================
+# CAMERA PANEL
+# ============================================================
+
+camera_frame = tk.LabelFrame(
+    info_window,
+    text="CAMERA"
+)
+
+camera_frame.pack(
+    padx=10,
+    pady=5,
+    fill=tk.X
+)
+
+
+follow_var = tk.BooleanVar(
+    value=True
+)
+
+
+def toggle_follow():
+
+    global FOLLOW_ROBOT
+
+    FOLLOW_ROBOT = follow_var.get()
+
+
+follow_check = tk.Checkbutton(
+    camera_frame,
+    text="FOLLOW ROBOT",
+    variable=follow_var,
+    command=toggle_follow
+)
+
+follow_check.pack(
+    side=tk.LEFT,
+    padx=10
+)
+
+
+camera_help = tk.Label(
+    camera_frame,
+    text=(
+        "Left drag = orbit    "
+        "Right drag = pan    "
+        "Wheel = zoom"
+    )
+)
+
+camera_help.pack(
+    side=tk.LEFT,
+    padx=10
+)
+
+
+# ============================================================
+# INFORMATION TEXT
+# ============================================================
+
+text_frame = tk.Frame(
+    info_window
+)
+
+text_frame.pack(
+    padx=10,
+    pady=5,
+    fill=tk.BOTH,
+    expand=True
+)
+
+
+scrollbar = tk.Scrollbar(
+    text_frame
+)
+
+scrollbar.pack(
+    side=tk.RIGHT,
+    fill=tk.Y
+)
+
+
+info_text = tk.Text(
+    text_frame,
+    width=90,
+    height=45,
+    font=("Courier New", 11),
+    yscrollcommand=scrollbar.set
+)
+
+info_text.pack(
+    side=tk.LEFT,
+    fill=tk.BOTH,
+    expand=True
+)
+
+
+scrollbar.config(
+    command=info_text.yview
+)
+
+
+# ============================================================
+# UPDATE INFORMATION
+# ============================================================
+
+def update_information():
+
+    # --------------------------------------------------------
+    # Position
+    # --------------------------------------------------------
+
+    position = data.xpos[
+        base_id
+    ].copy()
+
+
+    # --------------------------------------------------------
+    # BODY -> WORLD ROTATION
+    # --------------------------------------------------------
+
+    R_WB = data.xmat[
+        base_id
+    ].reshape(
+        3,
+        3
+    ).copy()
+
+
+    # --------------------------------------------------------
+    # YAW
+    # --------------------------------------------------------
+
+    yaw = np.arctan2(
+        R_WB[1, 0],
+        R_WB[0, 0]
+    )
+
+
+    yaw_deg = np.degrees(
+        yaw
+    )
+
+
+    # --------------------------------------------------------
+    # INFORMATION
+    # --------------------------------------------------------
+
+    text = ""
+
+
+    text += (
+        "==========================================================\n"
+    )
+
+    text += (
+        "              TURTLEBOT3 WAFFLE PI\n"
+    )
+
+    text += (
+        "==========================================================\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # CONTROLS
+    # --------------------------------------------------------
+
+    text += "CONTROLS\n"
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += "UP       = Forward\n"
+
+    text += "DOWN     = Backward\n"
+
+    text += "LEFT     = Rotate Left\n"
+
+    text += "RIGHT    = Rotate Right\n"
+
+    text += "SPACE    = Stop\n"
+
+    text += "ESC      = Exit\n\n"
+
+
+    # --------------------------------------------------------
+    # CURRENT POSITION
+    # --------------------------------------------------------
+
+    text += "CURRENT ROBOT POSITION\n"
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += (
+        f"X = {position[0]: .8f} m\n"
+    )
+
+    text += (
+        f"Y = {position[1]: .8f} m\n"
+    )
+
+    text += (
+        f"Z = {position[2]: .8f} m\n"
+    )
+
+    text += (
+        f"Yaw = {yaw_deg: .8f} degrees\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # ROTATION MATRIX
+    # --------------------------------------------------------
+
+    text += (
+        "BODY FRAME WITH RESPECT TO GROUND/WORLD\n"
+    )
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += (
+        "R_WB = Body axes expressed in World coordinates\n\n"
+    )
+
+
+    text += (
+        f"[ {R_WB[0,0]: .10f}   "
+        f"{R_WB[0,1]: .10f}   "
+        f"{R_WB[0,2]: .10f} ]\n"
+    )
+
+
+    text += (
+        f"[ {R_WB[1,0]: .10f}   "
+        f"{R_WB[1,1]: .10f}   "
+        f"{R_WB[1,2]: .10f} ]\n"
+    )
+
+
+    text += (
+        f"[ {R_WB[2,0]: .10f}   "
+        f"{R_WB[2,1]: .10f}   "
+        f"{R_WB[2,2]: .10f} ]\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # INTERPRETATION
+    # --------------------------------------------------------
+
+    text += "MATRIX INTERPRETATION\n"
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += (
+        "Column 1 = Body X / Forward in World coordinates\n"
+    )
+
+    text += (
+        "Column 2 = Body Y / Left in World coordinates\n"
+    )
+
+    text += (
+        "Column 3 = Body Z / Up in World coordinates\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # FRAMES
+    # --------------------------------------------------------
+
+    text += "REFERENCE FRAMES\n"
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += "WORLD X = RED\n"
+
+    text += "WORLD Y = GREEN\n"
+
+    text += "WORLD Z = BLUE\n\n"
+
+    text += "BODY X = RED = FORWARD\n"
+
+    text += "BODY Y = GREEN = LEFT\n"
+
+    text += "BODY Z = BLUE = UP\n\n"
+
+
+    # --------------------------------------------------------
+    # MODEL JOINTS
+    # --------------------------------------------------------
+
+    text += "BASE JOINTS\n"
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += "base_x   = X position\n"
+
+    text += "base_y   = Y position\n"
+
+    text += "base_yaw = yaw rotation\n"
+
+    text += "Z        = fixed at 0.11 m\n\n"
+
+
+    # --------------------------------------------------------
+    # CAMERA
+    # --------------------------------------------------------
+
+    text += "CAMERA\n"
+
+    text += (
+        "----------------------------------------------------------\n"
+    )
+
+    text += (
+        f"Follow Robot = {FOLLOW_ROBOT}\n"
+    )
+
+    text += (
+        f"Distance     = {CAMERA_DISTANCE:.3f} m\n"
+    )
+
+    text += (
+        f"Azimuth      = {CAMERA_AZIMUTH:.2f} degrees\n"
+    )
+
+    text += (
+        f"Elevation    = {CAMERA_ELEVATION:.2f} degrees\n\n"
+    )
+
+
+    # --------------------------------------------------------
+    # SIMULATION
+    # --------------------------------------------------------
+
+    text += (
+        f"SIMULATION TIME = {data.time:.4f} s\n"
+    )
+
+
+    # --------------------------------------------------------
+    # UPDATE
+    # --------------------------------------------------------
+
+    info_text.delete(
+        "1.0",
+        tk.END
+    )
+
+
+    info_text.insert(
+        tk.END,
+        text
+    )
+
+
+# ============================================================
+# INITIALIZE GLFW
+# ============================================================
+
+if not glfw.init():
+
+    raise RuntimeError(
+        "Could not initialize GLFW"
+    )
+
+
+# ============================================================
+# CREATE MUJOCO WINDOW
+# ============================================================
+
+window = glfw.create_window(
+    1400,
+    900,
+    "TurtleBot3 Waffle Pi - MuJoCo",
+    None,
+    None
+)
+
+
+if not window:
+
+    glfw.terminate()
+
+    raise RuntimeError(
+        "Could not create GLFW window"
+    )
+
+
+# ============================================================
+# GLFW CONTEXT
+# ============================================================
+
+glfw.make_context_current(
+    window
+)
+
+
+glfw.swap_interval(
+    1
+)
+
+
+# ============================================================
+# CALLBACKS
+# ============================================================
+
+glfw.set_key_callback(
+    window,
+    keyboard_callback
+)
+
+
+glfw.set_mouse_button_callback(
+    window,
+    mouse_button_callback
+)
+
+
+glfw.set_cursor_pos_callback(
+    window,
+    cursor_position_callback
+)
+
+
+glfw.set_scroll_callback(
+    window,
+    scroll_callback
+)
+
+
+# ============================================================
+# MUJOCO VISUALIZATION
+# ============================================================
+
+camera = mujoco.MjvCamera()
+
+option = mujoco.MjvOption()
+
+scene = mujoco.MjvScene(
+    model,
+    maxgeom=2000
+)
+
+context = mujoco.MjrContext(
+    model,
+    mujoco.mjtFontScale.mjFONTSCALE_100
+)
+
+
+# ============================================================
+# DEFAULT CAMERA
+# ============================================================
+
+mujoco.mjv_defaultCamera(
+    camera
+)
+
+
+mujoco.mjv_defaultOption(
+    option
+)
+
+
+# ============================================================
+# CAMERA SETTINGS
+# ============================================================
+
+camera.azimuth = CAMERA_AZIMUTH
+
+camera.elevation = CAMERA_ELEVATION
+
+camera.distance = CAMERA_DISTANCE
+
+camera.lookat[0] = 0.0
+
+camera.lookat[1] = 0.0
+
+camera.lookat[2] = INITIAL_Z
+
+
+# ============================================================
+# INITIAL PHYSICS
+# ============================================================
+
+mujoco.mj_forward(
+    model,
+    data
+)
+
+
+# ============================================================
+# START
+# ============================================================
+
+print()
+print("================================================")
+print("       TURTLEBOT3 WAFFLE PI - MUJOCO")
+print("================================================")
+print()
+print("CONTROLS")
+print("UP       = Forward")
+print("DOWN     = Backward")
+print("LEFT     = Rotate Left")
+print("RIGHT    = Rotate Right")
+print("SPACE    = Stop")
+print("ESC      = Exit")
+print()
+print("CAMERA")
+print("Left Mouse  = Orbit")
+print("Right Mouse = Pan")
+print("Wheel       = Zoom")
+print()
+print("RESPAWN")
+print("Enter X, Y and Yaw in the GUI.")
+print("Z is fixed at 0.11 m by the XML.")
+print()
+print("================================================")
+
+
+# ============================================================
+# MAIN LOOP
+# ============================================================
+
+while not glfw.window_should_close(
+    window
+):
+
+    # ========================================================
+    # EVENTS
+    # ========================================================
+
+    glfw.poll_events()
+
+
+    # ========================================================
+    # CONTROL
+    # ========================================================
+
+    update_keyboard_control()
+
+
+    # ========================================================
+    # PHYSICS
+    # ========================================================
+
+    mujoco.mj_step(
+        model,
+        data
+    )
+
+
+    # ========================================================
+    # CAMERA FOLLOW
+    # ========================================================
+
+    update_follow_camera()
+
+
+    # ========================================================
+    # FRAMEBUFFER
+    # ========================================================
+
+    width, height = glfw.get_framebuffer_size(
+        window
+    )
+
+
+    viewport = mujoco.MjrRect(
+        0,
+        0,
+        width,
+        height
+    )
+
+
+    # ========================================================
+    # UPDATE STANDARD SCENE
+    # ========================================================
+
+    mujoco.mjv_updateScene(
+        model,
+        data,
+        option,
+        None,
+        camera,
+        mujoco.mjtCatBit.mjCAT_ALL,
+        scene
+    )
+
+
+    # ========================================================
+    # ADD WORLD FRAME
+    #
+    # MUST BE AFTER mjv_updateScene()
+    # ========================================================
+
+    draw_world_frame(
+        scene
+    )
+
+
+    # ========================================================
+    # ADD BODY FRAME
+    # ========================================================
+
+    draw_body_frame(
+        scene
+    )
+
+
+    # ========================================================
+    # RENDER
+    # ========================================================
+
+    mujoco.mjr_render(
+        viewport,
+        scene,
+        context
+    )
+
+
+    # ========================================================
+    # DISPLAY
+    # ========================================================
+
+    glfw.swap_buffers(
+        window
+    )
+
+
+    # ========================================================
+    # UPDATE INFORMATION WINDOW
+    # ========================================================
+
+    update_information()
+
+
+    info_window.update_idletasks()
+
+    info_window.update()
+
+
+# ============================================================
+# STOP
+# ============================================================
+
+stop_robot()
+
+
+# ============================================================
+# CLEANUP
+# ============================================================
+
+try:
+
+    info_window.destroy()
+
+except Exception:
+
+    pass
+
+
+mujoco.mjr_freeContext(
+    context
+)
+
+
+mujoco.mjv_freeScene(
+    scene
+)
+
+
+glfw.destroy_window(
+    window
+)
+
+
+glfw.terminate()

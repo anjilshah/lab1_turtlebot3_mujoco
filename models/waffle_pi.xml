@@ -1,0 +1,304 @@
+<mujoco model="turtlebot3_waffle_pi">
+
+    <option timestep="0.002"
+            gravity="0 0 -9.81"
+            integrator="RK4"/>
+
+    <compiler angle="radian"/>
+
+    <visual>
+        <map znear="0.01" zfar="100"/>
+        <quality shadowsize="2048"/>
+
+        <headlight
+            ambient="0.5 0.5 0.5"
+            diffuse="0.8 0.8 0.8"
+            specular="0.2 0.2 0.2"/>
+
+        <global
+            offwidth="1600"
+            offheight="1000"/>
+    </visual>
+
+    <default>
+
+        <joint
+            damping="1.0"
+            armature="0.01"/>
+
+        <geom
+            condim="3"
+            friction="2.0 0.7 0.1"/>
+
+    </default>
+
+    <asset>
+
+        <material
+            name="road"
+            rgba="0.18 0.18 0.20 1"/>
+
+        <material
+            name="road_marking"
+            rgba="0.90 0.90 0.80 1"/>
+
+        <material
+            name="blue"
+            rgba="0.03 0.25 0.85 1"/>
+
+        <material
+            name="body_light"
+            rgba="0.85 0.85 0.88 1"/>
+
+        <material
+            name="black"
+            rgba="0.02 0.02 0.02 1"/>
+
+        <material
+            name="hub"
+            rgba="0.75 0.75 0.75 1"/>
+
+        <material
+            name="orange"
+            rgba="1.0 0.35 0.02 1"/>
+
+    </asset>
+
+    <worldbody>
+
+        <!-- GROUND -->
+
+        <geom
+            name="road"
+            type="plane"
+            pos="0 0 0"
+            size="25 25 0.1"
+            material="road"
+            friction="2.0 0.7 0.1"/>
+
+        <!-- ROAD EDGES -->
+
+        <geom
+            name="left_edge"
+            type="box"
+            pos="0 2.0 0.002"
+            size="25 0.03 0.002"
+            material="road_marking"
+            contype="0"
+            conaffinity="0"/>
+
+        <geom
+            name="right_edge"
+            type="box"
+            pos="0 -2.0 0.002"
+            size="25 0.03 0.002"
+            material="road_marking"
+            contype="0"
+            conaffinity="0"/>
+
+        <!-- CENTER LINE -->
+
+        <geom
+            name="center_line"
+            type="box"
+            pos="0 0 0.003"
+            size="25 0.025 0.002"
+            material="road_marking"
+            contype="0"
+            conaffinity="0"/>
+
+        <!-- LIGHTING -->
+
+        <light
+            name="key_light"
+            pos="2 -3 5"
+            directional="true"
+            diffuse="1 1 1"
+            specular="0.2 0.2 0.2"/>
+
+        <light
+            name="fill_light"
+            pos="-3 2 4"
+            directional="true"
+            diffuse="0.6 0.6 0.6"/>
+
+        <!-- TURTLEBOT3 WAFFLE PI -->
+
+        <body
+            name="base_link"
+            pos="0 0 0.11">
+
+            <!-- X MOVEMENT -->
+
+            <joint
+                name="base_x"
+                type="slide"
+                axis="1 0 0"
+                damping="2.0"
+                armature="0.02"/>
+
+            <!-- Y MOVEMENT -->
+
+            <joint
+                name="base_y"
+                type="slide"
+                axis="0 1 0"
+                damping="2.0"
+                armature="0.02"/>
+
+            <!-- YAW -->
+
+            <joint
+                name="base_yaw"
+                type="hinge"
+                axis="0 0 1"
+                damping="1.5"
+                armature="0.02"/>
+
+            <!-- MAIN CHASSIS -->
+
+            <geom
+                name="base_chassis"
+                type="box"
+                pos="0 0 0"
+                size="0.20 0.16 0.055"
+                mass="2.0"
+                material="blue"
+                friction="2.0 0.7 0.1"/>
+
+            <!-- UPPER BODY -->
+
+            <geom
+                name="upper_body"
+                type="box"
+                pos="-0.02 0 0.09"
+                size="0.17 0.145 0.04"
+                mass="0.4"
+                material="body_light"/>
+
+            <!-- FRONT PANEL -->
+
+            <geom
+                name="front_panel"
+                type="box"
+                pos="0.205 0 0.025"
+                size="0.015 0.12 0.05"
+                mass="0.05"
+                material="black"/>
+
+            <!-- LEFT WHEEL -->
+
+            <body
+                name="left_wheel"
+                pos="0 0.175 -0.055">
+
+                <joint
+                    name="left_wheel_joint"
+                    type="hinge"
+                    axis="0 1 0"
+                    damping="0.1"
+                    armature="0.01"/>
+
+                <geom
+                    name="left_wheel"
+                    type="cylinder"
+                    size="0.055 0.025"
+                    mass="0.20"
+                    euler="1.5707963 0 0"
+                    material="black"
+                    friction="2.0 0.8 0.1"/>
+
+                <geom
+                    name="left_hub"
+                    type="cylinder"
+                    pos="0 0.027 0"
+                    size="0.022 0.006"
+                    euler="1.5707963 0 0"
+                    material="hub"/>
+
+            </body>
+
+            <!-- RIGHT WHEEL -->
+
+            <body
+                name="right_wheel"
+                pos="0 -0.175 -0.055">
+
+                <joint
+                    name="right_wheel_joint"
+                    type="hinge"
+                    axis="0 1 0"
+                    damping="0.1"
+                    armature="0.01"/>
+
+                <geom
+                    name="right_wheel"
+                    type="cylinder"
+                    size="0.055 0.025"
+                    mass="0.20"
+                    euler="1.5707963 0 0"
+                    material="black"
+                    friction="2.0 0.8 0.1"/>
+
+                <geom
+                    name="right_hub"
+                    type="cylinder"
+                    pos="0 -0.027 0"
+                    size="0.022 0.006"
+                    euler="1.5707963 0 0"
+                    material="hub"/>
+
+            </body>
+
+            <!-- FRONT CASTER -->
+
+            <body
+                name="front_caster"
+                pos="0.15 0 -0.065">
+
+                <geom
+                    name="caster"
+                    type="sphere"
+                    size="0.045"
+                    mass="0.10"
+                    material="orange"
+                    friction="2.0 0.8 0.1"/>
+
+            </body>
+
+            <!-- TOP SENSOR -->
+
+            <body
+                name="sensor"
+                pos="0.04 0 0.16">
+
+                <geom
+                    name="sensor_body"
+                    type="cylinder"
+                    size="0.035 0.025"
+                    mass="0.05"
+                    material="black"/>
+
+            </body>
+
+        </body>
+
+    </worldbody>
+
+    <!-- WHEEL ACTUATORS -->
+
+    <actuator>
+
+        <velocity
+            name="left_motor"
+            joint="left_wheel_joint"
+            kv="5"/>
+
+        <velocity
+            name="right_motor"
+            joint="right_wheel_joint"
+            kv="5"/>
+
+    </actuator>
+
+</mujoco>
