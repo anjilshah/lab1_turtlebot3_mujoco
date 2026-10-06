@@ -1,6 +1,4 @@
-cd ~/turtlebot3_mujoco
 
-cat > README.md <<'EOF'
 # Lab 1 — MuJoCo Robotics Challenges
 
 ## Overview
